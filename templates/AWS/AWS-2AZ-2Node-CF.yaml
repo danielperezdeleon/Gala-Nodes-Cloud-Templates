@@ -139,9 +139,17 @@ Resources:
               - sed -i 's/\/usr\/local\/bin\/kubectl/\/usr\/bin\/kubectl/g; s/\/usr\/local\/bin\/gala-node/\/usr\/bin\/gala-node/g' ~/gala-node/install.sh
               - ~/gala-node/install.sh -y
               - export HOME=/root
-              - gala-node config api-key ${APIKey}
-              - gala-node config workloads ${Workloads}
-              - gala-node start
+              - sudo gala-node config api-key ${APIKey}
+              - |
+                bash -c '
+                  workloads="${Workloads}"
+                  echo "Workloads variable is: $workloads"
+                  for workload in $workloads; do
+                    echo "Running: sudo gala-node workload add $workload"
+                    sudo gala-node workload add $workload
+                  done
+                '
+              - sudo gala-node start 
               - bash -c 'printf "#!/bin/bash\necho \"Startup update at \$(date)\"\nyum update -y\ngala-node update -y\necho \"Finished update at \$(date)\"" > /var/lib/cloud/scripts/per-boot/startup.sh && chmod 744 /var/lib/cloud/scripts/per-boot/startup.sh'
         InstanceMarketOptions:
           MarketType: spot
@@ -190,6 +198,7 @@ Resources:
         TargetCapacity: 2
         TerminateInstancesWithExpiration: true
         InstanceInterruptionBehavior: stop
+        SpotPrice: '0.03'
         TagSpecifications:
           - ResourceType: spot-fleet-request
             Tags: 
@@ -200,22 +209,6 @@ Resources:
     DependsOn:
       - NodeLaunchTemplate
       - SpotFleetRole
-  StartSpotFleetInstances:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      Name: StartSpotFleetInstances
-      ScheduleExpression: "cron(0 7 * * ? *)"
-      Targets:
-        - Arn: !Sub "arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:spot-fleet-request/${NodeSpotFleet}"
-          Id: "StartSpotFleetInstances"
-  StopSpotFleetInstances:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      Name: StopSpotFleetInstances
-      ScheduleExpression: "cron(0 19 * * ? *)"
-      Targets:
-        - Arn: !Sub "arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:spot-fleet-request/${NodeSpotFleet}"
-          Id: "StopSpotFleetInstances"
   SpotFleetRole:
     Type: "AWS::IAM::Role"
     Properties:
